@@ -1,0 +1,78 @@
+---
+title: "VisualizeSeurat"
+author: "JuHyunJeon"
+date: "2023-05-24"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Viusualize with Seurat
+
+In this document, I will go through the basic workflow of Seurat but try to explore some alternative visualization techniques that can be employed to make graphs more readable.
+
+## Import libraries and download data
+
+```{r cars}
+library(tidyverse)
+library(dplyr)
+library(Seurat)
+library(SeuratData)
+library(ggplot2)
+library(patchwork)
+
+# I will use pbmc3k for his dtaset.
+InstallData("pbmc3k")
+
+data("pbmc3k.final")
+pbmc3k.final$groups <- sample(c("group1", "group2"), size = ncol(pbmc3k.final), replace = TRUE)
+features <- c("LYZ", "CCL5", "IL32", "PTPRCAP", "FCGR3A", "PF4")
+pbmc3k.final
+```
+
+## Ridgeline plots
+
+The following is a sample plot from the vignette.
+
+```{r seurat-base-ridgeplot, fig.width = 10, fig.height = 10, dpi = 450}
+RidgePlot(pbmc3k.final, features = features, ncol = 2)
+```
+
+However, this is not the best visualization technique for this data for several reasons.
+
+- There is no order to the identities.
+- The plot doesn't convey more information being a ridgeline plot. However, there is no clear benefit of overlapping.
+  - For LYZ, we do not know the expression level shape of NK around expression level 3.
+  - For PF4, the graph gives no information other than Platelet having outliers which doesn't necessarily have to be in ridgeline plot format.
+- Still for LYZ and CCL5, it shows a collection of distribution of gene expression levels.
+
+## Violin Plot
+
+```{r, seurat-base-vlnplot, fig.width = 10, fig.height = 10, dpi = 300}
+VlnPlot(pbmc3k.final, features = features)
+```
+
+- Violin plot suits the dataset better than ridgeline plot since it doesn't hide any distribution.
+```{r}
+df <- data.frame(seurat_annotations = character(), features = character(), value = numeric())
+uniq_annot <- unique(pbmc3k.final$seurat_annotations)
+for (annot in uniq_annot){
+  pbmc.subset <- subset(pbmc3k.final, subset = seurat_annotations == annot)
+  seurat_df <- GetAssayData(pbmc.subset)[features, ]
+  for (f in features){
+    for(i in 1:length(seurat_df[f, ])){
+      df <- df %>% add_row(seurat_annotations = annot, features = f, value = seurat_df[f, i])
+    }
+  }
+}
+
+df$features <- factor(df$features,levels = c("LYZ", "CCL5", "IL32", "PTPRCAP", "FCGR3A", "PF4"))
+```
+
+
+```{r, fig.width = 18, fig.height = 12}
+ggplot(df, aes(x = seurat_annotations, y = value)) + geom_boxplot() + facet_wrap(~features, nrow = 2, ncol = 3) + theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
+```
+
